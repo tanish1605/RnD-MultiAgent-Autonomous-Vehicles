@@ -1,0 +1,27 @@
+# ==================================================================
+# obstacle_detector node parameters (2D LiDAR front obstacle detection)
+#
+# Loaded by launch/obstacle_detector.launch.py.
+# Keep decimals on float values (e.g. 20.0) so ROS 2 accepts the type.
+# ==================================================================
+
+obstacle_detector:
+  ros__parameters:
+
+    # ── detection ───────────────────────────────────────────────────
+    front_fov_deg: 20.0       # half-angle of the front sector (deg)
+    fov_offset: 0.0           # added to each beam angle (rad), corrects lidar mounting yaw
+    cluster_threshold: 0.20   # max gap between consecutive points in a cluster (m)
+    min_scan_points: 5        # skip scan if fewer valid points in the FOV
+    min_cluster_points: 5     # cluster needs MORE than this many points
+    fov_marker_length: 5.0    # length of the RViz FOV lines (m)
+
+    # ── frames ──────────────────────────────────────────────────────
+    lidar_frame: "lidar_link"
+    odom_frame: "odom"
+
+    # ── topics ──────────────────────────────────────────────────────
+    scan_topic: "/scan"
+    obstacle_topic: "/front_obstacle"
+    fov_marker_topic: "/obstacle_marker"
+    obstacle_marker_topic: "/detected_obstacle_marker"

@@ -27,11 +27,50 @@ class ObstacleDetector(Node):
 
 
         # =============================
+        # PARAMETERS
+        # (see config/obstacle_detector_params.yaml)
+        # =============================
+
+        self.declare_parameter("front_fov_deg", 20.0)
+        self.declare_parameter("fov_offset", 0.0)
+        self.declare_parameter("cluster_threshold", 0.20)
+        self.declare_parameter("min_scan_points", 5)
+        self.declare_parameter("min_cluster_points", 5)
+        self.declare_parameter("fov_marker_length", 5.0)
+
+        self.declare_parameter("lidar_frame", "lidar_link")
+        self.declare_parameter("odom_frame", "odom")
+
+        self.declare_parameter("scan_topic", "/scan")
+        self.declare_parameter("obstacle_topic", "/front_obstacle")
+        self.declare_parameter("fov_marker_topic", "/obstacle_marker")
+        self.declare_parameter("obstacle_marker_topic", "/detected_obstacle_marker")
+
+        self.front_fov = math.radians(
+            self.get_parameter("front_fov_deg").value
+        )
+
+        self.fov_offset = self.get_parameter("fov_offset").value
+
+        self.cluster_threshold = self.get_parameter("cluster_threshold").value
+
+        self.min_scan_points = self.get_parameter("min_scan_points").value
+
+        self.min_cluster_points = self.get_parameter("min_cluster_points").value
+
+        self.fov_marker_length = self.get_parameter("fov_marker_length").value
+
+        self.lidar_frame = self.get_parameter("lidar_frame").value
+
+        self.odom_frame = self.get_parameter("odom_frame").value
+
+
+        # =============================
         # TF SETUP
         # =============================
         self.obstacle_marker_pub = self.create_publisher(
             Marker,
-            "/detected_obstacle_marker",
+            self.get_parameter("obstacle_marker_topic").value,
             10
         )
 
@@ -56,7 +95,7 @@ class ObstacleDetector(Node):
 
         self.create_subscription(
             LaserScan,
-            "/scan",
+            self.get_parameter("scan_topic").value,
             self.scan_callback,
             scan_qos
         )
@@ -69,28 +108,16 @@ class ObstacleDetector(Node):
 
         self.obstacle_pub = self.create_publisher(
             Obstacle,
-            "/front_obstacle",
+            self.get_parameter("obstacle_topic").value,
             10
         )
 
 
         self.marker_pub = self.create_publisher(
             Marker,
-            "/obstacle_marker",
+            self.get_parameter("fov_marker_topic").value,
             10
         )
-
-
-
-        # =============================
-        # PARAMETERS
-        # =============================
-
-        self.front_fov = math.radians(20)
-
-        self.fov_offset = 0.0
-
-        self.cluster_threshold = 0.20
 
 
 
@@ -224,7 +251,7 @@ class ObstacleDetector(Node):
 
 
 
-        if len(points)<5:
+        if len(points)<self.min_scan_points:
 
             return
 
@@ -311,7 +338,7 @@ class ObstacleDetector(Node):
             else:
 
 
-                if len(current)>5:
+                if len(current)>self.min_cluster_points:
 
                     clusters.append(current)
 
@@ -320,7 +347,7 @@ class ObstacleDetector(Node):
 
 
 
-        if len(current)>5:
+        if len(current)>self.min_cluster_points:
 
             clusters.append(current)
 
@@ -525,7 +552,7 @@ class ObstacleDetector(Node):
         p=tf2_geometry_msgs.PointStamped()
 
 
-        p.header.frame_id="lidar_link"
+        p.header.frame_id=self.lidar_frame
 
 
         p.header.stamp=(
@@ -548,9 +575,9 @@ class ObstacleDetector(Node):
 
             tf=self.tf_buffer.lookup_transform(
 
-                "odom",
+                self.odom_frame,
 
-                "lidar_link",
+                self.lidar_frame,
 
                 rclpy.time.Time()
 
@@ -586,7 +613,7 @@ class ObstacleDetector(Node):
         m=Marker()
 
 
-        m.header.frame_id="lidar_link"
+        m.header.frame_id=self.lidar_frame
 
 
         m.header.stamp=(
@@ -616,7 +643,7 @@ class ObstacleDetector(Node):
 
 
 
-        length=5.0
+        length=self.fov_marker_length
 
 
 
@@ -668,7 +695,7 @@ class ObstacleDetector(Node):
         marker = Marker()
 
 
-        marker.header.frame_id = "odom"
+        marker.header.frame_id = self.odom_frame
 
         marker.header.stamp = (
             self.get_clock()

@@ -6,7 +6,6 @@ watchdog:
   max_restarts: 5
 
 nodes:
-nodes:
   - id: 1
     name: "watchdog_dummy"
     command: ["ros2", "run", "watchdog_dummy", "loop_node"]

@@ -29,47 +29,68 @@ class InferenceNode(Node):
         self.latest_depth = None
 
         # --------------------------------------------------------
+        # Parameters (see config/object_detection_params.yaml)
+        # --------------------------------------------------------
+
+        self.declare_parameter("model_path", "")
+        self.declare_parameter("confidence", 0.50)
+        self.declare_parameter("iou", 0.45)
+        self.declare_parameter("image_size", 640)
+        self.declare_parameter("device", "")
+        self.declare_parameter("depth_roi_half_size", 3)
+        self.declare_parameter("rgb_topic", "/oak/rgb/image_raw")
+        self.declare_parameter("depth_topic", "/oak/stereo/image_raw")
+        self.declare_parameter("detections_topic", "/detections")
+
+        self.depth_roi_half_size = self.get_parameter("depth_roi_half_size").value
+        rgb_topic = self.get_parameter("rgb_topic").value
+        depth_topic = self.get_parameter("depth_topic").value
+        detections_topic = self.get_parameter("detections_topic").value
+
+        # --------------------------------------------------------
         # Load YOLO Model
         # --------------------------------------------------------
 
-        package_share = get_package_share_directory("object_detection")
-
-        model_path = os.path.join(
-            package_share,
-            "models",
-            "last.pt"
-        )
+        # Empty model_path -> bundled models/last.pt
+        model_path = self.get_parameter("model_path").value
+        if not model_path:
+            model_path = os.path.join(
+                get_package_share_directory("object_detection"),
+                "models",
+                "last.pt"
+            )
 
         self.detector = Detector(
             model_path=model_path,
-            confidence=0.50,
-            iou=0.45,
-            image_size=640,
+            confidence=self.get_parameter("confidence").value,
+            iou=self.get_parameter("iou").value,
+            image_size=self.get_parameter("image_size").value,
+            device=self.get_parameter("device").value or None,
         )
 
         self.visualizer = Visualizer()
 
         self.subscription = self.create_subscription(
             Image,
-            "/oak/rgb/image_raw",
+            rgb_topic,
             self.image_callback,
             qos_profile_sensor_data,
         )
 
         self.depth_subscription = self.create_subscription(
             Image,
-            "/oak/stereo/image_raw",
+            depth_topic,
             self.depth_callback,
             qos_profile_sensor_data,
         )
 
         self.detection_pub = self.create_publisher(
             DetectionArray,
-            "/detections",
+            detections_topic,
             10,
         )
 
-        self.get_logger().info("Subscribed to /oak/rgb/image_raw")
+        self.get_logger().info(f"Subscribed to {rgb_topic}")
 
     def estimate_distance(self, bbox):
 
@@ -82,10 +103,11 @@ class InferenceNode(Node):
         cy = (y1 + y2) // 2
 
 
-        # 7x7 region around the center pixel
+        # (2h+1)x(2h+1) region around the center pixel (7x7 for h=3)
+        h = self.depth_roi_half_size
         roi = self.latest_depth[
-            max(0, cy - 3):min(self.latest_depth.shape[0], cy + 4),
-            max(0, cx - 3):min(self.latest_depth.shape[1], cx + 4),
+            max(0, cy - h):min(self.latest_depth.shape[0], cy + h + 1),
+            max(0, cx - h):min(self.latest_depth.shape[1], cx + h + 1),
         ]
 
         # Remove invalid (zero) depth values

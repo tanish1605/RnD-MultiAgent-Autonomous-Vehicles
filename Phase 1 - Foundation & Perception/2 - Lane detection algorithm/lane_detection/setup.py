@@ -1,3 +1,6 @@
+import os
+from glob import glob
+
 from setuptools import find_packages, setup
 
 package_name = 'lane_detection'
@@ -10,6 +13,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -24,8 +29,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'lane_detection   = lane_detection.lane_detection:main',
-            'oakd_publisher = lane_detection.oakd_publisher:main'
+            'lane_detection = lane_detection.lane_detection:main',
         ],
     },
 )

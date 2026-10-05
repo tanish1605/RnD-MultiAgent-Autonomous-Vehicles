@@ -1,0 +1,24 @@
+# ==================================================================
+# inference_node parameters (YOLOv8 traffic sign detection)
+#
+# Loaded by launch/object_detection.launch.py.
+# Keep decimals on float values (e.g. 0.50) so ROS 2 accepts the type.
+# ==================================================================
+
+inference_node:
+  ros__parameters:
+
+    # ── model ───────────────────────────────────────────────────────
+    model_path: ""          # empty -> <share>/object_detection/models/last.pt
+    confidence: 0.50        # min detection confidence
+    iou: 0.45               # NMS IoU threshold
+    image_size: 640         # YOLO inference size (px)
+    device: ""              # "" = auto (cuda:0 if available, else cpu)
+
+    # ── depth estimation ────────────────────────────────────────────
+    depth_roi_half_size: 3  # median over a (2h+1)x(2h+1) patch -> 7x7
+
+    # ── topics ──────────────────────────────────────────────────────
+    rgb_topic: "/oak/rgb/image_raw"
+    depth_topic: "/oak/stereo/image_raw"
+    detections_topic: "/detections"
