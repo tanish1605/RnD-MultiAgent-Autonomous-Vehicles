@@ -1,0 +1,20 @@
+watchdog:
+  socket_path: "/tmp/master_unix"
+  heartbeat_timeout_sec: 2.0
+  check_period_sec: 0.2
+  restart_delay_sec: 1.0
+  max_restarts: 5
+
+nodes:
+nodes:
+  - id: 1
+    name: "watchdog_dummy"
+    command: ["ros2", "run", "watchdog_dummy", "loop_node"]
+    heartbeat_timeout_sec: 2.0
+    restart: true
+
+  # - id: 2
+  #   name: "sensor_node"
+  #   command: ["ros2", "run", "my_package", "sensor_node"]
+  #   heartbeat_timeout_sec: 3.0
+  #   restart: true

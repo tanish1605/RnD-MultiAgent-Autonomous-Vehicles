@@ -1,0 +1,141 @@
+# AMS Lane Detection
+
+A robust lane detection and perspective transformation pipeline optimized for OAK-D cameras (DepthAI) and edge devices (like Jetson). This repository includes real-time inference scripts, video recording utilities, and interactive calibration tools for generating perfect Bird's Eye View (BEV) projections.
+
+---
+
+## 📂 Repository Structure
+
+```text
+lane_detection/
+├── config/                     # Configuration files for camera parameters and calibration
+│   ├── oakd_params.py          # Script to extract and format OAK-D calibration data
+│   └── oak_d_s2_explicit_calibration.yaml # Generated YAML with intrinsics/extrinsics (different for different cameras, always regenerate)
+├── data/                       # Datasets, camera calibration images, and test media
+│   ├── calibration_output/     # Corner detection outputs
+│   ├── camera_cal/             # Raw calibration images
+│   ├── output_videos/          # Processed lane detection/grid videos
+│   ├── test_images/            # Static frames for tuning and testing
+│   └── test_videos/            # Raw input runs and inference outputs
+├── src/                        # Core lane detection logic and pipelines
+│   ├── lanev2_live_inference.py # Live OAK-D v2 inference (Yellow primary, Dash secondary)
+│   ├── lanev2_vid_inference.py  # Video v2 inference (Yellow primary, Dash secondary)
+│   ├── lanev3_vid_inference.py  # Video v3 inference (Yellow v2, Dash v1 logic)
+│   ├── lanev3_vidout.py         # Video v3 inference with file output
+│   ├── lanev4_vidout.py         # Video v4 inference (Drivable-Space Segmentation)
+│   ├── lanev5_vidout.py         # Video v5 inference (Center error calculation, CSV Logging)
+│   └── nodes/                  # Modular CV nodes for the pipeline
+│       ├── sumit_laneCV_v1.py
+│       ├── sumit_laneCV_v3.py
+│       ├── sumit_laneCV_v4.py
+│       └── sumit_laneCV_v5.py
+├── tools/                      # Utilities for recording, tuning, and transform calculations
+│   ├── BEV_on_video.py         # Applies BEV transform to a video
+│   ├── find_perspective_transform.py # Computes perspective matrices from static points
+│   ├── img_birdseye_tuner.py   # Interactive BEV tuner for static images
+│   ├── live_birseye_tuner.py   # Interactive BEV tuner for live camera feed
+│   ├── oakd_record.py          # High-performance OAK-D video recorder for Jetson
+│   └── select_perspective_points.py # Graphical tool to log click coordinates
+└── requirements.txt            # Python dependencies
+└── oakd_publisher.py           #ros2 node to publish everything the oakd cam has
+└── sumit_laneCV.py             #main node that always runs, cycle code from /src/nodes/ folder's v1, v3, v4, v5 (currently has v5 script)
+
+
+
+```
+
+---
+
+## 🚀 Core Source (`src/`)
+
+The `src/` directory contains the evolution of the lane detection pipeline, moving from basic polynomial fitting to drivable-space segmentation and finally a unified, perspective-correct approach.
+
+### V2 Pipeline (`lanev2_*`)
+* **Strategy:** Independent tracking of the left edge (Yellow Tape, HSV masked) and center dashed line (Adaptive Thresholding + Canny edge detection). The right edge is a constant offset from the center.
+* **Scripts:** * `lanev2_live_inference.py`: Connects directly to the OAK-D camera (CAM_A), applies hardware-level 180° rotation, runs the CV pipeline, and generates three outputs (overlay, debug mosaic, occupancy grid).
+  * `lanev2_vid_inference.py`: Runs the identical pipeline on pre-recorded video files.
+
+### V3 Pipeline (`lanev3_*`)
+* **Strategy:** Similar to V2 (Yellow primary, Dash secondary) but with refined smoothing, recovery state machines, and a more robust occupancy grid builder. It maintains two fully independent tracking pipelines.
+* **Scripts:** `lanev3_vid_inference.py` / `lanev3_vidout.py`.
+
+### V4 Pipeline (`lanev4_vidout.py`)
+* **Strategy:** Shifts from polynomial edge-fitting to **Drivable-Space Segmentation** in Bird's-Eye View. 
+  * Identifies boundary pixels (yellow tape or large white islands).
+  * Finds the largest connected "free" space touching the bottom-center.
+  * Estimates heading directly from the row-wise centroid of the drivable mask, rather than relying on center dashes. Dash detection is retained as a secondary cross-check.
+* **Robustness:** Handles forks, T-junctions, and variable-width roads where polynomial corridor fits fail.
+
+### V5 Pipeline (`lanev5_vidout.py`)
+* **Strategy:** **Standalone Video Inference with Cached Remap LUT.** Retains the bird's-eye view (BEV) polynomial fitting framework while optimizing front-end performance.
+  * Undistorts incoming raw frames using a cached rectification lookup table via `cv2.remap` to minimize per-frame computation.
+  * Processes yellow tape (left edge) and center dashes independently using localized search windows and spatial guards.
+  * Fits 2nd-degree polynomials in the unwarped coordinate space to track precise lane curves.
+  * Re-projects coordinates back to the native camera plane while saving continuous cross-track pixel error records directly to a `.csv` file.
+
+---
+
+## 🛠️ Tools
+
+The `tools/` directory contains a suite of utility scripts designed to handle camera recording, point selection, and interactive tuning for Bird's Eye View (BEV) transformations.
+
+### 1. Recording Utility
+* **`oakd_record.py`**
+    A high-performance OAK-D video recording script optimized for Jetson devices. It replaces the CPU-heavy `cv2.VideoWriter` with a non-blocking queue pushing to an FFmpeg subprocess (`libx264`, `ultrafast` preset).
+    * **Features:** Interactive UI with on-screen START/STOP buttons, hardware-accelerated encoding, frame-drop protection, and live recording stats (frames, size, elapsed time).
+    * **Usage:** Run the script and interact with the UI via mouse clicks or keyboard shortcuts (`R` to record, `S` to stop, `Q` to quit).
+
+### 2. Interactive BEV Tuners
+These tools allow you to visually calibrate the perspective warp by dragging four source points to create a flat, top-down view. Both output perfectly formatted `numpy` arrays that you can copy-paste into your main pipeline.
+
+* **`live_birseye_tuner.py` (Live Camera)**
+    Connects directly to the OAK-D camera (CAM_A). It displays a live, undistorted 1080p feed alongside a real-time BEV warp window. You can click and drag the four tuning nodes (TL, TR, BR, BL) on the main window to instantly see how the perspective warp changes.
+    * **Usage:** `python3 tools/live_birseye_tuner.py`
+
+* **`img_birdseye_tuner.py` (Still Images)**
+    Functions identically to the live tuner but operates on static images. Useful for tuning perspective transforms on pre-recorded dataset frames. Automatically resizes inputs to match camera intrinsics if needed.
+    * **Usage:** `python3 tools/img_birdseye_tuner.py path/to/image.png`
+
+### 3. Transform & Point Helpers
+* **`select_perspective_points.py`**
+    A simple graphical tool to open an image and log `(x, y)` coordinates via mouse clicks. Useful for quickly finding rough source coordinates before fine-tuning.
+
+* **`find_perspective_transform.py`**
+    A foundational script that takes hardcoded source points, applies OAK-D intrinsic camera matrices and distortion coefficients, and computes the `M` (perspective) and `M_inv` (inverse perspective) matrices.
+
+* **`BEV_on_video.py`**
+    Applies a defined perspective transform to a pre-recorded `.mp4` video. It reads the input video frame-by-frame, warps it into a 600x800 Bird's Eye View, and saves the output to a new file.
+
+---
+
+## ⚙️ Configuration (`config/`)
+
+* **`oakd_params.py`:** A utility script that connects to the OAK-D device, reads the EEPROM calibration data, and formats the camera intrinsics, distortion coefficients, and spatial extrinsics into clean `numpy` array strings.
+* **`oak_d_s2_explicit_calibration.yaml`:** The output generated by `oakd_params.py`, providing a standardized mapping for the OAK-D S2 camera system (CAM_A = RGB, CAM_B = Left Mono, CAM_C = Right Mono).
+
+---
+
+## 📦 Setup & Installation
+
+Ensure you have the required dependencies installed:
+
+```bash
+pip install -r requirements.txt
+```
+
+**Key Dependencies:**
+* `opencv-python==4.13.0.*`
+* `numpy==1.23.5`
+* `PyYAML>=6.0.3`
+* `depthai==3.6.1`
+
+## Must knows
+
+1. If there's any error in launching the OAKD camera pipeline node, make sure your code uses v3 DepthAI API instead of v2, refer to its documentation: https://docs.luxonis.com/software-v3/depthai/
+
+2. The camera, at the time of making this repository, is mounted in 180° rotation. That's why you'll observe almost all pipeline in code performing a 180° rotation to complement the hardware constraint (no place for camera cord). If any changes, just update the pipeline code and recalibrate the BEV polyon coords.
+
+3. v1, v3, v4 nodes create their own OAKD pipeline. v5 instead subscribes to img/raw_rgb published by inference_node in object detection package. 
+
+4. There are node codes available. To use them, just replace the main node code with code copied from the node scripts folder.
+
