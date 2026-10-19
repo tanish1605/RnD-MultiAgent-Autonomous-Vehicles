@@ -1,0 +1,5 @@
+# Data and training outputs are large - keep them out of git.
+dataset/
+training/runs/
+*.engine
+__pycache__/
