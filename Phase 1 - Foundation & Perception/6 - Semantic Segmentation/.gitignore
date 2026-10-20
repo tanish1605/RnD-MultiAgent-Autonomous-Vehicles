@@ -3,3 +3,6 @@ dataset/
 training/runs/
 *.engine
 __pycache__/
+semantic_segmentation/models/*.onnx
+semantic_segmentation/models/*.yaml
+semantic_segmentation/models/*.pt
