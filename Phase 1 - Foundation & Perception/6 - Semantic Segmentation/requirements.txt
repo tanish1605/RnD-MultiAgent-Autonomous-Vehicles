@@ -1,0 +1,12 @@
+# Laptop / Colab environment for tools/ and training/
+# (the Jetson already has torch, torchvision, opencv, numpy and pyyaml)
+#   pip install -r requirements.txt
+torch
+torchvision
+opencv-python
+numpy
+pyyaml
+onnx
+onnxscript
+onnxruntime
+rosbags
