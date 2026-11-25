@@ -3,7 +3,8 @@
 """
 detector.py
 
-YOLOv8 detector wrapper.
+YOLO detector wrapper (Ultralytics: YOLOv8, YOLO11, YOLO26, ... weights in
+.pt, or exported .onnx / TensorRT .engine files).
 
 Responsibilities
 ----------------
@@ -26,12 +27,14 @@ class Detector:
         confidence=0.50,
         iou=0.45,
         image_size=640,
-        device=None
+        device=None,
+        half=False
     ):
 
         self.confidence = confidence
         self.iou = iou
         self.image_size = image_size
+        self.half = half
 
         # Automatically choose GPU if available
         if device is None:
@@ -50,8 +53,10 @@ class Detector:
 
         self.model = YOLO(model_path)
 
-        # Move model to selected device
-        self.model.to(self.device)
+        # Move model to selected device. Only PyTorch weights can be moved;
+        # exported models (.onnx, .engine) pick the device in predict().
+        if str(model_path).endswith(".pt"):
+            self.model.to(self.device)
 
         self.class_names = self.model.names
 
@@ -74,7 +79,8 @@ class Detector:
             iou=self.iou,
             imgsz=self.image_size,
             verbose=False,
-            device=self.device
+            device=self.device,
+            half=self.half
         )
 
         detections = []
