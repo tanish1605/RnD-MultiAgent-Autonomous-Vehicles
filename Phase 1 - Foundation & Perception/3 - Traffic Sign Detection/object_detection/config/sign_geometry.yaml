@@ -1,0 +1,73 @@
+# ==================================================================
+# Sign geometry: camera calibration + physical size and shape of
+# every sign class. Used by object_detection/sign_geometry.py.
+#
+# TO DO before real measurements:
+#   - measure every sign with a ruler and set width_m (and height_m)
+#   - confirm each shape, then set measured: true
+# Until then the shapes are guessed from the class names and all
+# sizes are placeholders; unmeasured sizes get a large uncertainty
+# (guessed_size_rel_sigma), so fusion leans on stereo depth.
+# ==================================================================
+
+camera:
+  # OAK-D colour camera at 1920x1080, copied from
+  # 2 - Lane detection algorithm/lane_detection/config/camera_calibration.yaml
+  width: 1920
+  height: 1080
+  k: [1459.2276611328125, 0.0, 945.8712768554688,
+      0.0, 1458.7711181640625, 516.719482421875,
+      0.0, 0.0, 1.0]
+  d: [-2.480555534362793, -6.659245014190674, 0.00015050164074636996,
+      0.0006666610715910792, 22.50022315979004, -2.5853612422943115,
+      -6.1252665519714355, 21.745553970336914, 0.0, 0.0, 0.0, 0.0,
+      -0.0015395419904962182, 0.0015926380874589086]
+  # the nodes rotate every image by 180 deg (camera mounted upside down);
+  # true = use the calibration of the rotated image
+  image_rotated_180: true
+
+stereo:
+  # OAK-D left mono camera at 1280x720 and the left-right baseline, from
+  # lane_detection/config/oak_d_s2_explicit_calibration.yaml.
+  # focal_px must match the resolution the driver computes depth at.
+  focal_px: 798.2
+  baseline_m: 0.0752
+  disparity_sigma_px: 0.25
+
+# relative size uncertainty for signs with measured: false
+guessed_size_rel_sigma: 0.25
+
+# shapes: circle | triangle_up | triangle_down | square | rectangle | diamond | octagon
+# width_m: circle = diameter, triangle/square = side, diamond = corner to corner,
+#          octagon = across flats, rectangle = width (+ height_m)
+signs:
+  barrier_ahead:         {shape: triangle_up,   width_m: 0.10, measured: false}
+  beginning_of_motorway: {shape: rectangle,     width_m: 0.10, height_m: 0.12, measured: false}
+  bus_lane:              {shape: rectangle,     width_m: 0.10, height_m: 0.12, measured: false}
+  car_prohibited:        {shape: circle,        width_m: 0.10, measured: false}
+  compulsory_ahead:      {shape: circle,        width_m: 0.10, measured: false}
+  crossroads:            {shape: triangle_up,   width_m: 0.10, measured: false}
+  cycle_lane:            {shape: circle,        width_m: 0.10, measured: false}
+  end_of_motorway:       {shape: rectangle,     width_m: 0.10, height_m: 0.12, measured: false}
+  give_way:              {shape: triangle_down, width_m: 0.10, measured: false}
+  hosital:               {shape: rectangle,     width_m: 0.10, height_m: 0.12, measured: false}
+  left_turn_ahead:       {shape: triangle_up,   width_m: 0.10, measured: false}
+  major_road_ahead:      {shape: triangle_up,   width_m: 0.10, measured: false}
+  mandatory_left:        {shape: circle,        width_m: 0.10, measured: false}
+  mandatory_right:       {shape: circle,        width_m: 0.10, measured: false}
+  no_entry:              {shape: circle,        width_m: 0.10, measured: false}
+  no_left_turn:          {shape: circle,        width_m: 0.10, measured: false}
+  no_parking:            {shape: circle,        width_m: 0.10, measured: false}
+  no_waiting:            {shape: circle,        width_m: 0.10, measured: false}
+  one_way:               {shape: rectangle,     width_m: 0.10, height_m: 0.12, measured: false}
+  parking:               {shape: rectangle,     width_m: 0.10, height_m: 0.12, measured: false}
+  priority_road:         {shape: diamond,       width_m: 0.10, measured: false}
+  right_turn_ahead:      {shape: triangle_up,   width_m: 0.10, measured: false}
+  roundabout:            {shape: circle,        width_m: 0.10, measured: false}
+  stop:                  {shape: octagon,       width_m: 0.10, measured: false}
+  straight_or_left:      {shape: circle,        width_m: 0.10, measured: false}
+  t_intersection:        {shape: triangle_up,   width_m: 0.10, measured: false}
+  traffic_signal:        {shape: triangle_up,   width_m: 0.10, measured: false}
+  u_turn:                {shape: circle,        width_m: 0.10, measured: false}
+  y_intersection:        {shape: triangle_up,   width_m: 0.10, measured: false}
+  zebra_crossing:        {shape: triangle_up,   width_m: 0.10, measured: false}
