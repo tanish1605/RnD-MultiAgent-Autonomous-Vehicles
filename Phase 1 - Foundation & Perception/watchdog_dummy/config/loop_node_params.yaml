@@ -1,0 +1,15 @@
+# ==================================================================
+# watchdog_dummy loop_node parameters
+#
+# Loaded by launch/loop_node.launch.py.
+# ==================================================================
+
+watchdog_dummy_loop:
+  ros__parameters:
+    node_id: 1                        # must match the id in ros_watchdog/config/watchdog.yaml
+    socket_path: "/tmp/master_unix"   # must match watchdog.socket_path
+    loop_period_sec: 1.0
+    heartbeat_period_sec: 0.5
+    heartbeat_enabled: true
+    is_healthy: true
+    status_message: "OK"

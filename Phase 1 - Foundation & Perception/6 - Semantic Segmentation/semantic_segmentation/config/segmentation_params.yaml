@@ -1,0 +1,29 @@
+# ==================================================================
+# segmentation_node parameters (semantic segmentation)
+#
+# Loaded by launch/segmentation.launch.py.
+# Class names / colours / input size come from the MODEL FILE, not
+# from here - retraining with new classes needs no change in this file.
+# Keep decimals on float values (e.g. 0.5) so ROS 2 accepts the type.
+# ==================================================================
+
+segmentation_node:
+  ros__parameters:
+
+    # ── model ───────────────────────────────────────────────────────
+    model_path: ""              # empty -> <share>/semantic_segmentation/models/seg.onnx
+                                # .onnx (needs onnxruntime) or .pt (needs torch)
+    device: "auto"              # auto | cuda | cpu
+
+    # ── processing ──────────────────────────────────────────────────
+    rotate_180: true            # OAK-D is mounted upside down (same as other nodes)
+    full_resolution_mask: true  # true: mask = camera size; false: model input size
+    process_every_n: 1          # 2 = segment every 2nd frame, to save GPU
+    overlay_alpha: 0.5          # overlay colour strength (debug image only)
+    stats_period_sec: 5.0       # how often to log ms/frame
+
+    # ── topics ──────────────────────────────────────────────────────
+    image_topic: "/oak/rgb/image_raw"
+    mask_topic: "/segmentation/mask"
+    overlay_topic: "/segmentation/overlay"
+    classes_topic: "/segmentation/classes"

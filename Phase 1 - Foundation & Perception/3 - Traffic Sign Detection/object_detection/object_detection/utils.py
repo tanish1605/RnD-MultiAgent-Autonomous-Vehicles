@@ -86,6 +86,38 @@ def draw_label(
     )
 
 
+def latency_summary(latencies_s, arrivals_s):
+    """
+    Summarise message latencies.
+
+    latencies_s : receive time minus header stamp, per message (seconds)
+    arrivals_s  : receive time of each message (seconds)
+
+    Returns a dict with the message count, rate (Hz) and latency mean,
+    p50 / p95 / p99 and max in milliseconds, or None for no messages.
+    The percentiles show jitter: a node with a good mean can still stall.
+    """
+    import numpy as np
+
+    if len(latencies_s) == 0:
+        return None
+
+    ms = 1000.0 * np.asarray(latencies_s, dtype=float)
+    span = max(arrivals_s) - min(arrivals_s) if len(arrivals_s) > 1 else 0.0
+    rate = (len(arrivals_s) - 1) / span if span > 0 else 0.0
+    p50, p95, p99 = np.percentile(ms, [50, 95, 99])
+
+    return {
+        "count": len(ms),
+        "rate_hz": rate,
+        "mean_ms": float(ms.mean()),
+        "p50_ms": float(p50),
+        "p95_ms": float(p95),
+        "p99_ms": float(p99),
+        "max_ms": float(ms.max()),
+    }
+
+
 def clamp(value, minimum, maximum):
     """
     Clamp value between min and max.

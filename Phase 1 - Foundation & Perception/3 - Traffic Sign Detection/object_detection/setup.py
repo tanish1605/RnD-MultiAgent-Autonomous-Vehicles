@@ -45,6 +45,7 @@ setup(
     entry_points={
         'console_scripts': [
             'inference_node = object_detection.inference_node:main',
+            'latency_monitor = object_detection.latency_monitor:main',
         ],
     },
 )

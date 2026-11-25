@@ -1,0 +1,54 @@
+# ==================================================================
+# Semantic segmentation training config
+#
+# Used by train.py, evaluate.py, export_onnx.py and
+# tools/convert_masks.py. Paths are relative to this file's folder's
+# parent (training/) unless absolute.
+# ==================================================================
+
+# ── classes ─────────────────────────────────────────────────────────
+# Index = pixel value in the label masks. Names must match the label
+# names used in CVAT / Roboflow. colour is BGR, used for overlays.
+classes:
+  - {name: background,  color: [0, 0, 0]}
+  - {name: drivable,    color: [0, 160, 0]}      # own lane / track surface
+  - {name: yellow_line, color: [0, 215, 255]}
+  - {name: centre_dash, color: [255, 255, 0]}
+  - {name: obstacle,    color: [0, 0, 255]}
+ignore_index: 255        # mask value for "not labelled" pixels
+
+# ── data ────────────────────────────────────────────────────────────
+data:
+  root: ../dataset       # contains images/, masks/, splits/
+  input_width: 512       # network input; 16:9 like the 1920x1080 camera
+  input_height: 288
+
+# ── model ───────────────────────────────────────────────────────────
+model:
+  arch: lraspp_mobilenet_v3_large
+  pretrained_backbone: true   # ImageNet weights; downloaded on first run
+
+# ── training ────────────────────────────────────────────────────────
+train:
+  epochs: 80
+  batch_size: 8
+  lr: 0.001
+  weight_decay: 0.0001
+  num_workers: 4
+  device: auto           # auto | cuda | mps | cpu
+  class_weights: auto    # auto = up-weight rare classes (thin lines); none = equal
+  out_dir: runs          # checkpoints + logs go to runs/<timestamp>/
+  seed: 42
+
+# ── augmentation (training only) ────────────────────────────────────
+# No horizontal flip: the yellow line is always on the LEFT, flipping
+# would teach the model a layout that never happens on the track.
+augment:
+  brightness: 0.35       # +/- fraction
+  contrast: 0.35         # +/- fraction
+  hue_shift: 4           # +/- OpenCV hue units (0-179); keep small, yellow matters
+  shadow_prob: 0.4       # random dark polygon, mimics shadows on the track
+  glare_prob: 0.2        # random bright blob, mimics light reflections
+  blur_prob: 0.2         # motion / focus blur
+  scale: [0.85, 1.15]    # random zoom
+  shift: 0.05            # random translate, fraction of size

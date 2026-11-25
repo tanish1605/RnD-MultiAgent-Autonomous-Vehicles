@@ -12,6 +12,7 @@
   <depend>tf2_ros</depend>
   <depend>geometry_msgs</depend>
   <depend>obstacle_msgs</depend>
+  <exec_depend>launch_ros</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

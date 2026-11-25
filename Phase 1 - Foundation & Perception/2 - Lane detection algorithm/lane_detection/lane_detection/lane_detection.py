@@ -7,18 +7,17 @@ ROS 2 node  —  node name: lane_detection
 The full v5 detection pipeline lives inside this single file.
 No imports from lanev5_vidout.py.
 
-─────────────────────────────────────────────────────────────────────────────
-EDIT THESE TWO LINES TO CONFIGURE THE NODE
-─────────────────────────────────────────────────────────────────────────────
-"""
-DEBUG_VIDEO_SAVE_PATH = '/home/car-02/recordings/lane_debug.mp4'   # ← output video
-DEBUG_VIDEO_FPS       = 30.0                                    # ← match camera fps
-# ─────────────────────────────────────────────────────────────────────────────
+Configuration
+-------------
+All tuning values are ROS parameters, loaded from
+    config/lane_detection_params.yaml   (pipeline, topics, debug video)
+    config/camera_calibration.yaml      (camera K / D)
+by launch/lane_detection.launch.py. The module-level constants below are
+only the defaults used when a parameter is not supplied.
 
-"""
-Subscribes
+Subscribes  (topic names are parameters under `topics.*`)
 ----------
-/img/raw_rgb   sensor_msgs/Image   raw OAK-D camera feed
+/oak/rgb/image_raw   sensor_msgs/Image   raw OAK-D camera feed
 
 Publishes
 ---------
@@ -27,13 +26,6 @@ Publishes
 /lane/polynomial_coeffs      std_msgs/Float64MultiArray 9 coefficients (see below)
 /lane/status                 std_msgs/String            one-line status string
 /lane/left_lane_centre_path  nav_msgs/Path              LLC waypoints, base_link metres
-
-ROS parameters
---------------
-mpx         (float, default 0.005)  metres per pixel, lateral   (column direction)
-mpy         (float, default 0.005)  metres per pixel, longitudinal (row direction)
-base_frame  (str,   default base_link)
-n_waypoints (int,   default 40)
 
 Polynomial coefficients layout — /lane/polynomial_coeffs
 ---------------------------------------------------------
@@ -60,9 +52,9 @@ base_link conversion  (for /lane/left_lane_centre_path)
 
 Run
 ---
-  python3 lane_detection.py
+  ros2 launch lane_detection lane_detection.launch.py
   -- or --
-  ros2 run <pkg> lane_detection_node --ros-args -p mpx:=0.002 -p mpy:=0.002
+  ros2 run lane_detection lane_detection --ros-args -p mpx:=0.002 -p mpy:=0.002
 """
 
 import os
@@ -292,6 +284,142 @@ D_SMOOTH_N      = 5
 D_RECOVERY_THR  = 8
 
 _DASH_CLAHE = cv2.createCLAHE(clipLimit=D_CLAHE_CLIP, tileGridSize=D_CLAHE_GRID)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  PARAMETER <-> CONSTANT MAPPING
+# ═══════════════════════════════════════════════════════════════════════════
+
+DEBUG_VIDEO_SAVE_PATH = '/home/car-02/recordings/lane_debug.mp4'
+DEBUG_VIDEO_FPS       = 30.0
+
+
+def default_params():
+    """ROS parameter name -> default value, taken from the constants above."""
+    return {
+        'geometry.original_size':  list(ORIGINAL_SIZE),
+        'geometry.unwarped_size':  list(UNWARPED_SIZE),
+        'geometry.src_points':     SRC.flatten().astype(float).tolist(),
+        'geometry.dst_points':     DST.flatten().astype(float).tolist(),
+        'geometry.l2c_offset':     L2C_OFFSET,
+        'geometry.c2r_offset':     C2R_OFFSET,
+        'roi.top':                 ROI_TOP,
+        'roi.left':                ROI_LEFT,
+        'roi.right':               ROI_RIGHT,
+        'camera.k':                K.flatten().tolist(),
+        'camera.d':                D.tolist(),
+
+        'yellow.hsv_low':                Y_HSV_LOW.tolist(),
+        'yellow.hsv_high':               Y_HSV_HIGH.tolist(),
+        'yellow.open_kernel':            list(Y_OPEN_K),
+        'yellow.close_kernel':           list(Y_CLOSE_K),
+        'yellow.min_area':               Y_MIN_AREA,
+        'yellow.min_pts':                Y_MIN_PTS,
+        'yellow.search_window':          Y_SEARCH_WINDOW,
+        'yellow.search_window_recovery': Y_SEARCH_WINDOW_RECOVERY,
+        'yellow.max_lat_jump':           Y_MAX_LAT_JUMP,
+        'yellow.max_curv_jump':          Y_MAX_CURV_JUMP,
+        'yellow.smooth_n':               Y_SMOOTH_N,
+        'yellow.recovery_thr':           Y_RECOVERY_THR,
+
+        'dash.clahe_clip':             D_CLAHE_CLIP,
+        'dash.clahe_grid':             list(D_CLAHE_GRID),
+        'dash.adapt_block':            D_ADAPT_BLOCK,
+        'dash.adapt_c':                D_ADAPT_C,
+        'dash.canny_low':              D_CANNY_LOW,
+        'dash.canny_high':             D_CANNY_HIGH,
+        'dash.min_area':               D_MIN_AREA,
+        'dash.max_area':               D_MAX_AREA,
+        'dash.min_elongation':         D_MIN_ELONGATION,
+        'dash.min_solidity':           D_MIN_SOLIDITY,
+        'dash.offset_fallback_thr':    D_OFFSET_FALLBACK_THR,
+        'dash.output_smooth_n':        D_OUTPUT_SMOOTH_N,
+        'dash.output_max_lat':         D_OUTPUT_MAX_LAT,
+        'dash.search_window':          D_SEARCH_WINDOW,
+        'dash.search_window_recovery': D_SEARCH_WINDOW_RECOVERY,
+        'dash.search_window_seed':     D_SEARCH_WINDOW_SEED,
+        'dash.max_lat_jump':           D_MAX_LAT_JUMP,
+        'dash.max_curv_jump':          D_MAX_CURV_JUMP,
+        'dash.smooth_n':               D_SMOOTH_N,
+        'dash.recovery_thr':           D_RECOVERY_THR,
+
+        'debug_video.save_path':       DEBUG_VIDEO_SAVE_PATH,
+        'debug_video.fps':             DEBUG_VIDEO_FPS,
+    }
+
+
+def apply_params(p):
+    """Override the module-level constants from a {param_name: value} dict
+    and recompute everything derived from them (M, M_inv, CLAHE, ...)."""
+    global ORIGINAL_SIZE, UNWARPED_SIZE, SRC, DST, M, M_inv
+    global L2C_OFFSET, C2R_OFFSET, CAMERA_CENTER_X, _BOT_ROW
+    global ROI_TOP, ROI_LEFT, ROI_RIGHT, K, D
+    global Y_HSV_LOW, Y_HSV_HIGH, Y_OPEN_K, Y_CLOSE_K, Y_MIN_AREA, Y_MIN_PTS
+    global Y_SEARCH_WINDOW, Y_SEARCH_WINDOW_RECOVERY, Y_MAX_LAT_JUMP
+    global Y_MAX_CURV_JUMP, Y_SMOOTH_N, Y_RECOVERY_THR
+    global D_CLAHE_CLIP, D_CLAHE_GRID, D_ADAPT_BLOCK, D_ADAPT_C
+    global D_CANNY_LOW, D_CANNY_HIGH, D_MIN_AREA, D_MAX_AREA
+    global D_MIN_ELONGATION, D_MIN_SOLIDITY, D_OFFSET_FALLBACK_THR
+    global D_OUTPUT_SMOOTH_N, D_OUTPUT_MAX_LAT, D_SEARCH_WINDOW
+    global D_SEARCH_WINDOW_RECOVERY, D_SEARCH_WINDOW_SEED
+    global D_MAX_LAT_JUMP, D_MAX_CURV_JUMP, D_SMOOTH_N, D_RECOVERY_THR
+    global _DASH_CLAHE, DEBUG_VIDEO_SAVE_PATH, DEBUG_VIDEO_FPS
+
+    ORIGINAL_SIZE = tuple(int(v) for v in p['geometry.original_size'])
+    UNWARPED_SIZE = tuple(int(v) for v in p['geometry.unwarped_size'])
+    SRC = np.array(p['geometry.src_points'], dtype=np.float32).reshape(4, 2)
+    DST = np.array(p['geometry.dst_points'], dtype=np.float32).reshape(4, 2)
+    M     = cv2.getPerspectiveTransform(SRC, DST)
+    M_inv = cv2.getPerspectiveTransform(DST, SRC)
+    L2C_OFFSET      = p['geometry.l2c_offset']
+    C2R_OFFSET      = p['geometry.c2r_offset']
+    CAMERA_CENTER_X = UNWARPED_SIZE[0] / 2.0
+    _BOT_ROW        = float(UNWARPED_SIZE[1] - 1)
+
+    ROI_TOP   = p['roi.top']
+    ROI_LEFT  = p['roi.left']
+    ROI_RIGHT = p['roi.right']
+
+    K = np.array(p['camera.k'], dtype=np.float64).reshape(3, 3)
+    D = np.array(p['camera.d'], dtype=np.float64)
+
+    Y_HSV_LOW  = np.array(p['yellow.hsv_low'],  dtype=np.uint8)
+    Y_HSV_HIGH = np.array(p['yellow.hsv_high'], dtype=np.uint8)
+    Y_OPEN_K   = tuple(p['yellow.open_kernel'])
+    Y_CLOSE_K  = tuple(p['yellow.close_kernel'])
+    Y_MIN_AREA = p['yellow.min_area']
+    Y_MIN_PTS  = p['yellow.min_pts']
+    Y_SEARCH_WINDOW          = p['yellow.search_window']
+    Y_SEARCH_WINDOW_RECOVERY = p['yellow.search_window_recovery']
+    Y_MAX_LAT_JUMP  = p['yellow.max_lat_jump']
+    Y_MAX_CURV_JUMP = p['yellow.max_curv_jump']
+    Y_SMOOTH_N      = p['yellow.smooth_n']
+    Y_RECOVERY_THR  = p['yellow.recovery_thr']
+
+    D_CLAHE_CLIP  = p['dash.clahe_clip']
+    D_CLAHE_GRID  = tuple(p['dash.clahe_grid'])
+    D_ADAPT_BLOCK = p['dash.adapt_block']
+    D_ADAPT_C     = p['dash.adapt_c']
+    D_CANNY_LOW   = p['dash.canny_low']
+    D_CANNY_HIGH  = p['dash.canny_high']
+    D_MIN_AREA       = p['dash.min_area']
+    D_MAX_AREA       = p['dash.max_area']
+    D_MIN_ELONGATION = p['dash.min_elongation']
+    D_MIN_SOLIDITY   = p['dash.min_solidity']
+    D_OFFSET_FALLBACK_THR = p['dash.offset_fallback_thr']
+    D_OUTPUT_SMOOTH_N     = p['dash.output_smooth_n']
+    D_OUTPUT_MAX_LAT      = p['dash.output_max_lat']
+    D_SEARCH_WINDOW          = p['dash.search_window']
+    D_SEARCH_WINDOW_RECOVERY = p['dash.search_window_recovery']
+    D_SEARCH_WINDOW_SEED     = p['dash.search_window_seed']
+    D_MAX_LAT_JUMP  = p['dash.max_lat_jump']
+    D_MAX_CURV_JUMP = p['dash.max_curv_jump']
+    D_SMOOTH_N      = p['dash.smooth_n']
+    D_RECOVERY_THR  = p['dash.recovery_thr']
+    _DASH_CLAHE = cv2.createCLAHE(clipLimit=D_CLAHE_CLIP, tileGridSize=D_CLAHE_GRID)
+
+    DEBUG_VIDEO_SAVE_PATH = p['debug_video.save_path']
+    DEBUG_VIDEO_FPS       = p['debug_video.fps']
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -557,7 +685,10 @@ def build_fit_vis(ys_y, xs_y, ys_d, xs_d,
 
 class LaneDetector:
 
-    def __init__(self, l2c=L2C_OFFSET, c2r=C2R_OFFSET):
+    def __init__(self, l2c=None, c2r=None):
+        # resolved at call time so apply_params() overrides take effect
+        l2c = L2C_OFFSET if l2c is None else l2c
+        c2r = C2R_OFFSET if c2r is None else c2r
         self.l2c = l2c
         self.c2r = c2r
         self._y_history          = deque(maxlen=Y_SMOOTH_N)
@@ -823,12 +954,29 @@ class LaneCVNode(Node):
         self.declare_parameter('mpx',          0.005)
         self.declare_parameter('mpy',          0.005)
         self.declare_parameter('base_frame',  'base_link')
+        self.declare_parameter('camera_frame', 'camera')
         self.declare_parameter('n_waypoints',  40)
 
-        self._mpx        = self.get_parameter('mpx').value
-        self._mpy        = self.get_parameter('mpy').value
-        self._base_frame = self.get_parameter('base_frame').value
-        self._n_wpts     = self.get_parameter('n_waypoints').value
+        self.declare_parameter('topics.image_in',        '/oak/rgb/image_raw')
+        self.declare_parameter('topics.debug_image',     '/lane/debug_image')
+        self.declare_parameter('topics.pixel_error',     '/lane/pixel_error')
+        self.declare_parameter('topics.poly_coeffs',     '/lane/polynomial_coeffs')
+        self.declare_parameter('topics.status',          '/lane/status')
+        self.declare_parameter('topics.lane_centre_path', '/lane/left_lane_centre_path')
+
+        defaults = default_params()
+        for name, value in defaults.items():
+            self.declare_parameter(name, value)
+        apply_params({name: self.get_parameter(name).value for name in defaults})
+
+        self._mpx          = self.get_parameter('mpx').value
+        self._mpy          = self.get_parameter('mpy').value
+        self._base_frame   = self.get_parameter('base_frame').value
+        self._camera_frame = self.get_parameter('camera_frame').value
+        self._n_wpts       = self.get_parameter('n_waypoints').value
+
+        def topic(name):
+            return self.get_parameter('topics.' + name).value
 
         self._bridge    = CvBridge()
         self._detector  = LaneDetector()
@@ -840,21 +988,21 @@ class LaneCVNode(Node):
 
         # ── publishers ───────────────────────────────────────────────────
         self._pub_dbg    = self.create_publisher(
-            Image,             '/lane/debug_image',           _QOS_IMG)
+            Image,             topic('debug_image'),      _QOS_IMG)
         self._pub_err    = self.create_publisher(
-            Float32,           '/lane/pixel_error',           _QOS_CTRL)
+            Float32,           topic('pixel_error'),      _QOS_CTRL)
         self._pub_coeffs = self.create_publisher(
-            Float64MultiArray, '/lane/polynomial_coeffs',     _QOS_CTRL)
+            Float64MultiArray, topic('poly_coeffs'),      _QOS_CTRL)
         self._pub_status = self.create_publisher(
-            String,            '/lane/status',                _QOS_CTRL)
+            String,            topic('status'),           _QOS_CTRL)
         self._pub_path   = self.create_publisher(
-            Path,              '/lane/left_lane_centre_path', _QOS_IMG)
+            Path,              topic('lane_centre_path'), _QOS_IMG)
 
         # ── subscriber ───────────────────────────────────────────────────
-        self.create_subscription(Image, '/oak/rgb/image_raw', self._image_cb, _QOS_IMG)
+        self.create_subscription(Image, topic('image_in'), self._image_cb, _QOS_IMG)
 
         self.get_logger().info(
-            f"lane_detection ready  |  subscribing: /oak/rgb/image_raw  |  "
+            f"lane_detection ready  |  subscribing: {topic('image_in')}  |  "
             f"mpx={self._mpx} m/px  mpy={self._mpy} m/px  |  "
             f"debug video -> {self._save_path}")
 
@@ -877,7 +1025,7 @@ class LaneCVNode(Node):
         # ── /lane/debug_image ─────────────────────────────────────────────
         dbg_msg                 = self._bridge.cv2_to_imgmsg(dbg, encoding='bgr8')
         dbg_msg.header.stamp    = stamp
-        dbg_msg.header.frame_id = 'camera'
+        dbg_msg.header.frame_id = self._camera_frame
         self._pub_dbg.publish(dbg_msg)
 
         # ── save debug frame to video ─────────────────────────────────────

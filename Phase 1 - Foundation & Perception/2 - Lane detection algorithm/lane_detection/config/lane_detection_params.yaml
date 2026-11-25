@@ -1,0 +1,85 @@
+# ==================================================================
+# lane_detection node parameters
+#
+# Loaded by launch/lane_detection.launch.py together with
+# camera_calibration.yaml. Types matter: keep decimals on float values
+# (e.g. 30.0, not 30) or ROS 2 will reject the override.
+# ==================================================================
+
+lane_detection:
+  ros__parameters:
+
+    # ── output path conversion ──────────────────────────────────────
+    mpx: 0.005                  # metres per bird's-eye pixel, lateral (columns)
+    mpy: 0.005                  # metres per bird's-eye pixel, longitudinal (rows)
+    base_frame: "base_link"     # frame_id of /lane/left_lane_centre_path
+    camera_frame: "camera"      # frame_id of /lane/debug_image
+    n_waypoints: 40             # waypoints in the published path
+
+    # ── topics ──────────────────────────────────────────────────────
+    topics:
+      image_in: "/oak/rgb/image_raw"
+      debug_image: "/lane/debug_image"
+      pixel_error: "/lane/pixel_error"
+      poly_coeffs: "/lane/polynomial_coeffs"
+      status: "/lane/status"
+      lane_centre_path: "/lane/left_lane_centre_path"
+
+    # ── debug video recording ───────────────────────────────────────
+    debug_video:
+      save_path: "/home/car-02/recordings/lane_debug.mp4"
+      fps: 30.0                 # match camera fps
+
+    # ── perspective / bird's-eye geometry ───────────────────────────
+    geometry:
+      original_size: [1920, 1080]   # [w, h] camera frame
+      unwarped_size: [500, 600]     # [w, h] bird's-eye image
+      # 4 points as flat [x1, y1, x2, y2, ...]: TL, TR, BR, BL
+      src_points: [675.0, 543.0, 1247.0, 517.0, 1883.0, 851.0, 43.0, 882.0]
+      dst_points: [0.0, 0.0, 500.0, 0.0, 500.0, 600.0, 0.0, 600.0]
+      l2c_offset: 300               # yellow left -> centre dash (px)
+      c2r_offset: 310               # centre dash -> right virtual edge (px)
+
+    # ── region of interest in the bird's-eye image (px) ─────────────
+    roi:
+      top: 220
+      left: 0
+      right: 485
+
+    # ── yellow tape (left edge) detection ───────────────────────────
+    yellow:
+      hsv_low: [20, 50, 130]
+      hsv_high: [33, 255, 255]
+      open_kernel: [4, 4]
+      close_kernel: [13, 13]
+      min_area: 400
+      min_pts: 50
+      search_window: 120
+      search_window_recovery: 400
+      max_lat_jump: 80
+      max_curv_jump: 0.12
+      smooth_n: 8
+      recovery_thr: 8
+
+    # ── centre dash detection ───────────────────────────────────────
+    dash:
+      clahe_clip: 1.5
+      clahe_grid: [8, 8]
+      adapt_block: 199
+      adapt_c: -45
+      canny_low: 215
+      canny_high: 170
+      min_area: 120
+      max_area: 2000
+      min_elongation: 1.5
+      min_solidity: 0.55
+      offset_fallback_thr: 8
+      output_smooth_n: 6
+      output_max_lat: 60
+      search_window: 100
+      search_window_recovery: 400
+      search_window_seed: 80
+      max_lat_jump: 50
+      max_curv_jump: 0.01
+      smooth_n: 5
+      recovery_thr: 8

@@ -21,6 +21,9 @@
   <depend>std_msgs</depend>
   <depend>cv_bridge</depend>
   <depend>object_detection_msgs</depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>rosidl_runtime_py</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
 
   <!-- Build -->
   <test_depend>ament_flake8</test_depend>

@@ -22,6 +22,16 @@ def generate_launch_description():
 
     )
 
+    params_file = os.path.join(
+
+        get_package_share_directory("object_detection"),
+
+        "config",
+
+        "object_detection_params.yaml"
+
+    )
+
 
     return LaunchDescription([
 
@@ -39,7 +49,9 @@ def generate_launch_description():
 
             name="inference_node",
 
-            output="screen"
+            output="screen",
+
+            parameters=[params_file]
 
         )
 
