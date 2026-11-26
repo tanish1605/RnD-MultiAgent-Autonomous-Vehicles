@@ -8,8 +8,12 @@ Turn a Roboflow YOLO export into a clean dataset for training:
   2. fixes labels you decided are wrong (--relabel IMAGE=CLASS), for
      example after reviewing the output of audit_sign_labels.py
   3. drops images you decided are unusable (--drop IMAGE)
-  4. splits per ORIGINAL image, stratified by class, so augmented copies
-     of one photo never end up in both training and test data
+  4. splits by BLOCKS of consecutive video frames (--block-frames, default
+     12) with all their augmented copies, stratified by class, so near-copies
+     of a photo never end up in both training and test data; where blocks of
+     different splits meet, valid/test frames within --gap frames (default 2)
+     of a training frame are left out, because neighbouring frames are almost
+     identical
   5. keeps all augmented copies in train, but only one copy per image in
      valid and test (identical copies add nothing to an evaluation)
   6. writes <out>/{train,valid,test}/{images,labels} and data.yaml
@@ -71,6 +75,10 @@ def main():
     ap.add_argument('--val', type=float, default=0.15)
     ap.add_argument('--test', type=float, default=0.15)
     ap.add_argument('--seed', type=int, default=42)
+    ap.add_argument('--block-frames', type=int, default=12,
+                    help='consecutive frames kept together in one split (1 = per image)')
+    ap.add_argument('--gap', type=int, default=2,
+                    help='leave out valid/test frames this close to a training frame (0 = off)')
     ap.add_argument('--copy', action='store_true', help='copy images instead of linking them')
     ap.add_argument('--dry-run', action='store_true', help='show the plan, write nothing')
     args = ap.parse_args()
@@ -88,7 +96,9 @@ def main():
         if s.source in relabel:
             s.classes = [relabel[s.source]] * len(s.classes)
     samples = [s for s in samples if s.source not in drop]
-    assignment = stratified_split(samples, args.val, args.test, args.seed)
+    assignment = stratified_split(samples, args.val, args.test, args.seed,
+                                  block_frames=args.block_frames, gap=args.gap)
+    edge = sum(1 for v in assignment.values() if v == 'drop')
 
     names = load_names(args.export)
     n_classes = max([c for s in samples for c in s.classes] + [-1]) + 1
@@ -100,6 +110,8 @@ def main():
     files = Counter()
     for s in samples:
         split = assignment[s.source]
+        if split == 'drop':
+            continue
         copies = s.copies if split == 'train' else s.copies[:1]
         files[split] += len(copies)
         for c in s.classes:
@@ -107,6 +119,8 @@ def main():
 
     print(f'{len(samples)} original images ({sum(len(s.copies) for s in samples)} files), '
           f'{len(relabel)} relabelled, {len(drop)} dropped')
+    print(f'split by blocks of {args.block_frames} frames; {edge} valid/test frames left out '
+          f'because they are within {args.gap} frames of a training frame')
     print(f'\n{"class":>5} {"name":22s} ' + ' '.join(f'{sp:>6s}' for sp in SPLITS))
     for c in range(n_classes):
         name = names[c] if c < len(names) else '?'
@@ -123,6 +137,8 @@ def main():
             os.makedirs(os.path.join(args.out, sp, sub), exist_ok=True)
     for s in samples:
         split = assignment[s.source]
+        if split == 'drop':
+            continue
         for image, label in (s.copies if split == 'train' else s.copies[:1]):
             dst = os.path.join(args.out, split, 'images', os.path.basename(image))
             if not os.path.exists(dst):
