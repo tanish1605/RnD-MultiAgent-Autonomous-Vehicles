@@ -6,7 +6,8 @@ import sys
 
 import yaml
 
-from object_detection.dataset_split import collect, relabel_lines, Sample, stratified_split
+from object_detection.dataset_split import (collect, frame_block, relabel_lines, Sample,
+                                            stratified_split)
 
 TOOL = os.path.join(os.path.dirname(__file__), '..', 'tools', 'prepare_sign_dataset.py')
 
@@ -103,3 +104,48 @@ def test_prepare_tool_rejects_unknown_image(tmp_path):
     run = subprocess.run([sys.executable, TOOL, str(export), str(tmp_path / 'o'),
                           '--drop', 'no_such_image', '--dry-run'], capture_output=True, text=True)
     assert run.returncode != 0 and 'no_such_image' in run.stderr
+
+
+# ── splitting by blocks of consecutive frames ──────────────────────────────
+
+def video_samples(prefixes=('stop', 'yield', 'park'), frames=60):
+    """One recording per class: consecutive frames prefix_00000_jpg, ..."""
+    return [Sample(f'{p}_{n:05d}_jpg', classes=[c])
+            for c, p in enumerate(prefixes) for n in range(frames)]
+
+
+def test_frame_block():
+    assert frame_block('STOP_00042_jpg', 10) == 'STOP#4'
+    assert frame_block('STOP_00042_jpg', 1) == 'STOP_00042_jpg'
+    assert frame_block('no_number_here', 10) == 'no_number_here'
+
+
+def test_blocks_stay_together_and_every_class_is_split():
+    samples = video_samples()
+    split = stratified_split(samples, block_frames=12, seed=3)
+    for s in samples:
+        block = frame_block(s.source, 12)
+        assert {split[o.source] for o in samples if frame_block(o.source, 12) == block} \
+            == {split[s.source]}
+    for c in range(3):
+        got = {split[s.source] for s in samples if s.main_class == c}
+        assert got == {'train', 'valid', 'test'}
+
+
+def test_gap_removes_frames_next_to_training_frames():
+    samples = video_samples()
+    split = stratified_split(samples, block_frames=12, gap=2, seed=3)
+    assert 'drop' in split.values()
+    for s in samples:
+        if split[s.source] not in ('valid', 'test'):
+            continue
+        prefix, n = s.source.rsplit('_', 2)[0], int(s.source.rsplit('_', 2)[1])
+        for d in (-2, -1, 1, 2):
+            assert split.get(f'{prefix}_{n + d:05d}_jpg') != 'train'
+
+
+def test_class_with_too_few_blocks_goes_to_train():
+    samples = video_samples(frames=60) + [Sample(f'rare_{n:05d}_jpg', classes=[9])
+                                          for n in range(20)]
+    split = stratified_split(samples, block_frames=12)
+    assert {split[f'rare_{n:05d}_jpg'] for n in range(20)} == {'train'}
