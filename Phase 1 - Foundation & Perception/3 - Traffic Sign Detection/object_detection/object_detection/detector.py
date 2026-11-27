@@ -96,7 +96,11 @@ class Detector:
         if result.boxes is None:
             return detections
 
-        for box in result.boxes:
+        # segmentation models also give each object's outline, as a polygon in
+        # the pixel coordinates of the input image
+        polygons = result.masks.xy if getattr(result, "masks", None) is not None else None
+
+        for i, box in enumerate(result.boxes):
 
             cls_id = int(box.cls.item())
 
@@ -122,7 +126,10 @@ class Detector:
 
                     int(y2)
 
-                ]
+                ],
+
+                "polygon": (polygons[i] if polygons is not None and i < len(polygons)
+                            else None),
             })
 
         return detections
