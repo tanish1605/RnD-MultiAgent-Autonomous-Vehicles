@@ -28,13 +28,15 @@ class Detector:
         iou=0.45,
         image_size=640,
         device=None,
-        half=False
+        half=False,
+        retina_masks=False
     ):
 
         self.confidence = confidence
         self.iou = iou
         self.image_size = image_size
         self.half = half
+        self.retina_masks = retina_masks
 
         # Automatically choose GPU if available
         if device is None:
@@ -76,6 +78,10 @@ class Detector:
         # pass 'half' only when it is on: recent Ultralytics versions warn
         # about the argument on every call, even when it is False
         extra = {'half': True} if self.half else {}
+        if self.retina_masks:
+            # segmentation outlines at full image resolution instead of the
+            # model's coarse 1/4-scale masks (sharper edges for the geometry)
+            extra['retina_masks'] = True
         results = self.model.predict(
             source=frame,
             conf=self.confidence,

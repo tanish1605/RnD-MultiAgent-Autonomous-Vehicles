@@ -30,12 +30,17 @@ from .sign_geometry import (box_size_distance, Camera, estimate_pose, fuse_dista
 class SignLocalizer:
     """Distance and angle of detected signs from outline, size and stereo."""
 
-    def __init__(self, config_path, rotated_180=True, gate=3.0):
+    def __init__(self, config_path, rotated_180=True, gate=3.0, edge_noise_px=2.0,
+                 stereo_rel_floor=0.02):
         """
         Load sign sizes / shapes and the fallback calibration.
 
         rotated_180 : whether the node rotates camera images by 180 deg
                       before detection (the calibration is rotated to match)
+        edge_noise_px : uncertainty of a segmentation outline's edge (px)
+        stereo_rel_floor : smallest relative stereo error assumed (the OAK-D
+                      is specified at < 2 % depth error; the disparity model
+                      alone is far more optimistic close up)
         """
         camera, self.specs, stereo = load_config(config_path)
         with open(config_path, encoding='utf-8') as f:
@@ -46,6 +51,8 @@ class SignLocalizer:
         self.info_camera = None
         self.rotated_180 = rotated_180
         self.gate = gate
+        self.edge_noise_px = edge_noise_px
+        self.stereo_rel_floor = stereo_rel_floor
         self.stereo_focal_px = float(stereo.get('focal_px', 800.0))
         self.stereo_baseline_m = float(stereo.get('baseline_m', 0.075))
         self.disparity_sigma_px = float(stereo.get('disparity_sigma_px', 0.25))
@@ -114,7 +121,7 @@ class SignLocalizer:
         pose = None
         if mask is not None and spec is not None:
             try:
-                pose = estimate_pose(mask, spec, camera)
+                pose = estimate_pose(mask, spec, camera, edge_noise_px=self.edge_noise_px)
             except cv2.error:
                 pose = None
         if pose is not None:
@@ -126,7 +133,8 @@ class SignLocalizer:
         stereo = None
         if stereo_z is not None and stereo_z > 0:
             stereo = (stereo_z, stereo_sigma(stereo_z, self.stereo_focal_px,
-                                             self.stereo_baseline_m, self.disparity_sigma_px))
+                                             self.stereo_baseline_m, self.disparity_sigma_px,
+                                             floor_m=max(0.005, self.stereo_rel_floor * stereo_z)))
         geometry = (pose.z, pose.sigma_z) if pose is not None else None
         fused = fuse_distance(geometry, stereo, self.gate)
         if fused is not None:

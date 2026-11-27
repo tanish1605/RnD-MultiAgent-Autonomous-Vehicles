@@ -83,6 +83,8 @@ class InferenceNode(Node):
         self.declare_parameter("geometry_config", "")   # "" -> <share>/config/sign_geometry.yaml
         self.declare_parameter("camera_info_topic", "")  # "" -> rgb_topic's camera_info
         self.declare_parameter("geometry_log", "")       # CSV of every estimate ("" = off)
+        self.declare_parameter("retina_masks", True)     # full-resolution outlines (geometry)
+        self.declare_parameter("edge_noise_px", 2.0)     # outline edge uncertainty (px)
 
         def param(name):
             return self.get_parameter(name).value
@@ -112,6 +114,7 @@ class InferenceNode(Node):
             image_size=param("image_size"),
             device=param("device") or None,
             half=param("half"),
+            retina_masks=bool(param("sign_geometry")) and bool(param("retina_masks")),
         )
 
         self.visualizer = Visualizer()
@@ -127,7 +130,8 @@ class InferenceNode(Node):
             config = param("geometry_config") or os.path.join(
                 get_package_share_directory("object_detection"),
                 "config", "sign_geometry.yaml")
-            self.localizer = SignLocalizer(config, rotated_180=self.rotate_180)
+            self.localizer = SignLocalizer(config, rotated_180=self.rotate_180,
+                                           edge_noise_px=float(param("edge_noise_px")))
             missing = [n for n in self.detector.class_names.values()
                        if n not in self.localizer.specs]
             if missing:
