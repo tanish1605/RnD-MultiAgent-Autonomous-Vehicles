@@ -52,7 +52,7 @@ signs:
   beginning_of_motorway: {shape: square,        width_m: 0.10, measured: false}  # audit square 100%
   bus_lane:              {shape: rectangle,     width_m: 0.10, height_m: 0.12, measured: false}  # audit -, guessed
   car_prohibited:        {shape: circle,        width_m: 0.068, measured: true}  # measured diameter 6.8 cm
-  compulsory_ahead:      {shape: square,        width_m: 0.10, measured: false}  # audit square 100% (board)
+  compulsory_ahead:      {shape: square,        width_m: 0.040, measured: true}  # measured square 4.0 cm
   crossroads:            {shape: triangle_up,   width_m: 0.0751, measured: true}  # measured height 6.5 cm; side from equal-sided triangle
   cycle_lane:            {shape: rectangle,     width_m: 0.055, height_m: 0.075, measured: true}  # measured 5.5 x 7.5 cm (width x height)
   end_of_motorway:       {shape: square,        width_m: 0.10, measured: false}  # audit square 100%
