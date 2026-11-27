@@ -20,8 +20,15 @@ Publishes
 Detection runs with or without depth: without a depth image yet, distances
 are reported as -1. Frame rate and inference time are logged periodically
 instead of once per frame.
+
+sign_geometry:=true (with a segmentation model, e.g. YOLO26-seg) turns on the
+shape-aware localisation: the sign's outline is fitted with its known shape
+and size (config/sign_geometry.yaml) and fused with stereo depth; the
+published distance is then the fused one. geometry_log:=<file.csv> writes
+every method's estimate per detection, for comparing them.
 """
 
+import csv
 import os
 import time
 
@@ -33,11 +40,12 @@ from object_detection_msgs.msg import Detection
 from object_detection_msgs.msg import DetectionArray
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import Image
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+from sensor_msgs.msg import CameraInfo, Image
 
 from .depth_estimator import bbox_distance
 from .detector import Detector
+from .sign_localizer import SignLocalizer
 from .visualization import Visualizer
 
 
@@ -70,6 +78,13 @@ class InferenceNode(Node):
         self.declare_parameter("depth_topic", "/oak/stereo/image_raw")
         self.declare_parameter("detections_topic", "/detections")
         self.declare_parameter("annotated_topic", "/detections/image")
+        self.declare_parameter("rotate_180", True)      # camera mounted upside down
+        self.declare_parameter("sign_geometry", False)  # shape-aware localisation
+        self.declare_parameter("geometry_config", "")   # "" -> <share>/config/sign_geometry.yaml
+        self.declare_parameter("camera_info_topic", "")  # "" -> rgb_topic's camera_info
+        self.declare_parameter("geometry_log", "")       # CSV of every estimate ("" = off)
+        self.declare_parameter("retina_masks", True)     # full-resolution outlines (geometry)
+        self.declare_parameter("edge_noise_px", 2.0)     # outline edge uncertainty (px)
 
         def param(name):
             return self.get_parameter(name).value
@@ -77,6 +92,7 @@ class InferenceNode(Node):
         self.depth_roi_half_size = param("depth_roi_half_size")
         self.show_window = param("show_window")
         self.log_detections = param("log_detections")
+        self.rotate_180 = bool(param("rotate_180"))
 
         # --------------------------------------------------------
         # Load YOLO Model
@@ -98,9 +114,46 @@ class InferenceNode(Node):
             image_size=param("image_size"),
             device=param("device") or None,
             half=param("half"),
+            retina_masks=bool(param("sign_geometry")) and bool(param("retina_masks")),
         )
 
         self.visualizer = Visualizer()
+
+        # --------------------------------------------------------
+        # Shape-aware sign localisation (optional)
+        # --------------------------------------------------------
+        self.localizer = None
+        self.geometry_csv = None
+        self.geometry_time = 0.0
+        self.geometry_count = 0
+        if param("sign_geometry"):
+            config = param("geometry_config") or os.path.join(
+                get_package_share_directory("object_detection"),
+                "config", "sign_geometry.yaml")
+            self.localizer = SignLocalizer(config, rotated_180=self.rotate_180,
+                                           edge_noise_px=float(param("edge_noise_px")))
+            missing = [n for n in self.detector.class_names.values()
+                       if n not in self.localizer.specs]
+            if missing:
+                self.get_logger().warn(
+                    f"No size/shape in {config} for: {', '.join(missing)} "
+                    "(stereo only for these)")
+            info_topic = param("camera_info_topic") or \
+                param("rgb_topic").rsplit("/", 1)[0] + "/camera_info"
+            self.camera_info_topic = info_topic
+            self.get_logger().info(
+                f"Sign geometry ON ({config}); calibration from {info_topic}, "
+                "until it arrives from the config file")
+            if param("geometry_log"):
+                self.geometry_file = open(param("geometry_log"), "w", newline="",
+                                          encoding="utf-8")
+                self.geometry_csv = csv.writer(self.geometry_file)
+                self.geometry_csv.writerow([
+                    "stamp", "class", "confidence", "x1", "y1", "x2", "y2",
+                    "has_outline", "stereo_box", "stereo_mask", "box_size",
+                    "geometry", "geometry_sigma", "view_angle_deg", "method",
+                    "fit_error_px", "fused", "fused_sigma", "source", "chi",
+                    "consistent", "calibration"])
 
         self.detection_pub = self.create_publisher(
             DetectionArray,
@@ -114,21 +167,35 @@ class InferenceNode(Node):
             1,
         )
 
-        # sensor-data QoS (best effort): if inference is slower than the
-        # camera, old frames are dropped instead of piling up.
+        # best effort, keep only the newest frame: when inference is slower
+        # than the camera, older frames are dropped instead of waiting in a
+        # queue (a queue of 5 added ~200 ms of latency on the Jetson)
+        latest_only = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+        )
         self.create_subscription(
             Image,
             param("rgb_topic"),
             self.image_callback,
-            qos_profile_sensor_data,
+            latest_only,
         )
 
         self.create_subscription(
             Image,
             param("depth_topic"),
             self.depth_callback,
-            qos_profile_sensor_data,
+            latest_only,
         )
+
+        if self.localizer is not None:
+            self.create_subscription(
+                CameraInfo,
+                self.camera_info_topic,
+                self.camera_info_callback,
+                latest_only,
+            )
 
         self.frames = 0
         self.detected = 0
@@ -147,7 +214,8 @@ class InferenceNode(Node):
             return
 
         # Camera mounted upside down
-        frame = cv2.rotate(frame, cv2.ROTATE_180)
+        if self.rotate_180:
+            frame = cv2.rotate(frame, cv2.ROTATE_180)
 
         # ---------------------------------------------
         # Run YOLO
@@ -177,6 +245,17 @@ class InferenceNode(Node):
                 if depth is not None else None
             )
 
+        if self.localizer is not None:
+            t1 = time.perf_counter()
+            for det in detections:
+                info = self.localizer.localize(det, frame.shape, depth, det["distance"])
+                det["geometry"] = info
+                det["distance"] = info["distance"]
+                if self.geometry_csv is not None:
+                    self.write_geometry_row(msg.header.stamp, det, info)
+            self.geometry_time += time.perf_counter() - t1
+            self.geometry_count += len(detections)
+
         self.publish_detections(detections, msg.header)
 
         if self.log_detections:
@@ -186,10 +265,22 @@ class InferenceNode(Node):
                     if det["distance"] is not None
                     else "N/A"
                 )
+                geo = det.get("geometry")
+                extra = ""
+                if geo is not None:
+                    def f(v):
+                        return "-" if v is None else f"{v:.2f}"
+                    extra = (f" | stereo_box={f(geo['stereo_box'])}"
+                             f" stereo_mask={f(geo['stereo_mask'])}"
+                             f" geometry={f(geo['geometry'])}"
+                             f" box_size={f(geo['box_size'])}"
+                             f" angle={f(geo['view_angle_deg'])}"
+                             f" -> {geo['source']}"
+                             + ("" if geo["consistent"] is not False else " DISAGREE"))
                 self.get_logger().info(
                     f"{det['class_name']:20s}"
                     f" Conf={det['confidence']:.2f}"
-                    f" Dist={dist}"
+                    f" Dist={dist}" + extra
                 )
 
         # ---------------------------------------------
@@ -220,13 +311,37 @@ class InferenceNode(Node):
             return
 
         # Rotate depth exactly like RGB
-        self.latest_depth = cv2.rotate(depth, cv2.ROTATE_180)
+        self.latest_depth = cv2.rotate(depth, cv2.ROTATE_180) if self.rotate_180 else depth
 
         if self.show_window:
             depth_vis = cv2.normalize(self.latest_depth, None, 0, 255, cv2.NORM_MINMAX)
             depth_vis = cv2.applyColorMap(depth_vis.astype(np.uint8), cv2.COLORMAP_JET)
             cv2.imshow("Depth", depth_vis)
             cv2.waitKey(1)
+
+    def camera_info_callback(self, msg):
+        """Use the camera's own calibration for the geometry (once)."""
+        if self.localizer.info_camera is None:
+            self.localizer.set_camera_info(list(msg.k), list(msg.d), msg.width, msg.height)
+            if self.localizer.info_camera is not None:
+                self.get_logger().info(
+                    f"Calibration from camera_info: {msg.width}x{msg.height}, "
+                    f"fx={msg.k[0]:.1f} fy={msg.k[4]:.1f}, {len(msg.d)} distortion terms")
+
+    def write_geometry_row(self, stamp, det, info):
+        """One CSV line per detection with every method's estimate."""
+        def v(x):
+            return "" if x is None else (f"{x:.4f}" if isinstance(x, float) else x)
+        x1, y1, x2, y2 = det["bbox"]
+        self.geometry_csv.writerow([
+            f"{stamp.sec}.{stamp.nanosec:09d}", det["class_name"], f"{det['confidence']:.3f}",
+            x1, y1, x2, y2, int(det.get("polygon") is not None),
+            v(info["stereo_box"]), v(info["stereo_mask"]), v(info["box_size"]),
+            v(info["geometry"]), v(info["geometry_sigma"]), v(info["view_angle_deg"]),
+            v(info["method"]), v(info["fit_error_px"]), v(info["fused"]),
+            v(info["fused_sigma"]), v(info["source"]), v(info["chi"]),
+            v(info["consistent"]), self.localizer.calibration_source])
+        self.geometry_file.flush()
 
     def publish_detections(self, detections, header):
         """Publish one DetectionArray for a frame."""
@@ -265,13 +380,19 @@ class InferenceNode(Node):
         if self.frames:
             ms = 1000.0 * self.infer_time / self.frames
             depth = "yes" if self.latest_depth is not None else "NO (distances = -1)"
+            geo = ""
+            if self.localizer is not None and self.geometry_count:
+                geo = (f", geometry {1000.0 * self.geometry_time / self.geometry_count:.1f}"
+                       f" ms/sign ({self.localizer.calibration_source} calibration)")
             self.get_logger().info(
                 f"{self.frames} frames, {ms:.1f} ms/frame inference, "
-                f"{self.detected} detections, depth: {depth}")
+                f"{self.detected} detections, depth: {depth}{geo}")
         else:
             self.get_logger().warn("No frames received - is the camera publishing?")
         self.frames = self.detected = 0
         self.infer_time = 0.0
+        self.geometry_time = 0.0
+        self.geometry_count = 0
 
 
 def main(args=None):

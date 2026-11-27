@@ -28,13 +28,15 @@ class Detector:
         iou=0.45,
         image_size=640,
         device=None,
-        half=False
+        half=False,
+        retina_masks=False
     ):
 
         self.confidence = confidence
         self.iou = iou
         self.image_size = image_size
         self.half = half
+        self.retina_masks = retina_masks
 
         # Automatically choose GPU if available
         if device is None:
@@ -73,6 +75,13 @@ class Detector:
         List[dict]
         """
 
+        # pass 'half' only when it is on: recent Ultralytics versions warn
+        # about the argument on every call, even when it is False
+        extra = {'half': True} if self.half else {}
+        if self.retina_masks:
+            # segmentation outlines at full image resolution instead of the
+            # model's coarse 1/4-scale masks (sharper edges for the geometry)
+            extra['retina_masks'] = True
         results = self.model.predict(
             source=frame,
             conf=self.confidence,
@@ -80,7 +89,7 @@ class Detector:
             imgsz=self.image_size,
             verbose=False,
             device=self.device,
-            half=self.half
+            **extra
         )
 
         detections = []
@@ -93,7 +102,11 @@ class Detector:
         if result.boxes is None:
             return detections
 
-        for box in result.boxes:
+        # segmentation models also give each object's outline, as a polygon in
+        # the pixel coordinates of the input image
+        polygons = result.masks.xy if getattr(result, "masks", None) is not None else None
+
+        for i, box in enumerate(result.boxes):
 
             cls_id = int(box.cls.item())
 
@@ -119,7 +132,10 @@ class Detector:
 
                     int(y2)
 
-                ]
+                ],
+
+                "polygon": (polygons[i] if polygons is not None and i < len(polygons)
+                            else None),
             })
 
         return detections
