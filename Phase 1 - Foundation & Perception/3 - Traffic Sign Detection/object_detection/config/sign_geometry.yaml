@@ -71,7 +71,7 @@ signs:
   priority_road:         {shape: diamond,       width_m: 0.10, measured: false}  # audit diamond 90%
   right_turn_ahead:      {shape: triangle_up,   width_m: 0.10, measured: false}  # audit -, guessed
   roundabout:            {shape: square,        width_m: 0.10, measured: false}  # audit square 97% (board)
-  stop:                  {shape: octagon,       width_m: 0.10, measured: false}  # audit round 100% (octagon reads as round)
+  stop:                  {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%; the lab sign is round
   straight_or_left:      {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
   t_intersection:        {shape: triangle_up,   width_m: 0.10, measured: false}  # audit triangle_up 96%
   traffic_signal:        {shape: triangle_up,   width_m: 0.10, measured: false}  # audit triangle_up 100%
