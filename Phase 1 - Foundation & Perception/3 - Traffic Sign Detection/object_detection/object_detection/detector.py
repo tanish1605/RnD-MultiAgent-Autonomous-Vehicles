@@ -73,6 +73,9 @@ class Detector:
         List[dict]
         """
 
+        # pass 'half' only when it is on: recent Ultralytics versions warn
+        # about the argument on every call, even when it is False
+        extra = {'half': True} if self.half else {}
         results = self.model.predict(
             source=frame,
             conf=self.confidence,
@@ -80,7 +83,7 @@ class Detector:
             imgsz=self.image_size,
             verbose=False,
             device=self.device,
-            half=self.half
+            **extra
         )
 
         detections = []
