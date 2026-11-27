@@ -1,0 +1,80 @@
+# ==================================================================
+# Sign geometry: camera calibration + physical size and shape of
+# every sign class. Used by object_detection/sign_geometry.py.
+#
+# Shapes: what the labellers OUTLINED in the polygon dataset, found by the
+# label audit (tools/audit_sign_labels.py, train split, 1,768 outlines):
+# the segmentation model learns to draw exactly that outline, so the
+# geometry must assume the same shape - e.g. several round signs were
+# outlined as their square board and are therefore 'square' here.
+#
+# TO DO before real measurements:
+#   - measure every sign with a ruler (the outlined part: the board where
+#     the shape is square) and set width_m (and height_m)
+#   - then set measured: true
+# Until then all sizes are placeholders; unmeasured sizes get a large
+# uncertainty (guessed_size_rel_sigma), so fusion leans on stereo depth.
+# ==================================================================
+
+camera:
+  # OAK-D colour camera at 1920x1080, copied from
+  # 2 - Lane detection algorithm/lane_detection/config/camera_calibration.yaml
+  width: 1920
+  height: 1080
+  k: [1459.2276611328125, 0.0, 945.8712768554688,
+      0.0, 1458.7711181640625, 516.719482421875,
+      0.0, 0.0, 1.0]
+  d: [-2.480555534362793, -6.659245014190674, 0.00015050164074636996,
+      0.0006666610715910792, 22.50022315979004, -2.5853612422943115,
+      -6.1252665519714355, 21.745553970336914, 0.0, 0.0, 0.0, 0.0,
+      -0.0015395419904962182, 0.0015926380874589086]
+  # the nodes rotate every image by 180 deg (camera mounted upside down);
+  # true = use the calibration of the rotated image
+  image_rotated_180: true
+
+stereo:
+  # OAK-D left mono camera at 1280x720 and the left-right baseline, from
+  # lane_detection/config/oak_d_s2_explicit_calibration.yaml.
+  # focal_px must match the resolution the driver computes depth at.
+  focal_px: 798.2
+  baseline_m: 0.0752
+  disparity_sigma_px: 0.25
+
+# relative size uncertainty for signs with measured: false
+guessed_size_rel_sigma: 0.25
+
+# shapes: circle | triangle_up | triangle_down | square | rectangle | diamond | octagon
+# width_m: circle = diameter, triangle/square = side, diamond = corner to corner,
+#          octagon = across flats, rectangle = width (+ height_m)
+# audit: share of this class's outlines with that shape (- = class not in the dataset)
+signs:
+  barrier_ahead:         {shape: triangle_up,   width_m: 0.10, measured: false}  # audit triangle_up 98%
+  beginning_of_motorway: {shape: square,        width_m: 0.10, measured: false}  # audit square 100%
+  bus_lane:              {shape: rectangle,     width_m: 0.10, height_m: 0.12, measured: false}  # audit -, guessed
+  car_prohibited:        {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
+  compulsory_ahead:      {shape: square,        width_m: 0.10, measured: false}  # audit square 100% (board)
+  crossroads:            {shape: triangle_up,   width_m: 0.10, measured: false}  # audit triangle_up 100%
+  cycle_lane:            {shape: square,        width_m: 0.10, measured: false}  # audit square 92% (board)
+  end_of_motorway:       {shape: square,        width_m: 0.10, measured: false}  # audit square 100%
+  give_way:              {shape: triangle_down, width_m: 0.10, measured: false}  # audit triangle_down 100%
+  hosital:               {shape: rectangle,     width_m: 0.10, height_m: 0.12, measured: false}  # audit -, guessed
+  left_turn_ahead:       {shape: triangle_up,   width_m: 0.10, measured: false}  # audit -, guessed
+  major_road_ahead:      {shape: triangle_up,   width_m: 0.10, measured: false}  # audit triangle_up 98%
+  mandatory_left:        {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
+  mandatory_right:       {shape: circle,        width_m: 0.10, measured: false}  # audit round 90%
+  no_entry:              {shape: square,        width_m: 0.10, measured: false}  # audit square 98% (board)
+  no_left_turn:          {shape: circle,        width_m: 0.10, measured: false}  # audit round 97%
+  no_parking:            {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
+  no_waiting:            {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
+  one_way:               {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
+  parking:               {shape: square,        width_m: 0.10, measured: false}  # audit square 89%
+  priority_road:         {shape: diamond,       width_m: 0.10, measured: false}  # audit diamond 90%
+  right_turn_ahead:      {shape: triangle_up,   width_m: 0.10, measured: false}  # audit -, guessed
+  roundabout:            {shape: square,        width_m: 0.10, measured: false}  # audit square 97% (board)
+  stop:                  {shape: octagon,       width_m: 0.10, measured: false}  # audit round 100% (octagon reads as round)
+  straight_or_left:      {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
+  t_intersection:        {shape: triangle_up,   width_m: 0.10, measured: false}  # audit triangle_up 96%
+  traffic_signal:        {shape: triangle_up,   width_m: 0.10, measured: false}  # audit triangle_up 100%
+  u_turn:                {shape: circle,        width_m: 0.10, measured: false}  # audit round 98%
+  y_intersection:        {shape: triangle_up,   width_m: 0.10, measured: false}  # audit triangle_up 94%
+  zebra_crossing:        {shape: circle,        width_m: 0.10, measured: false}  # audit round 59%, square 41%: check the sign
