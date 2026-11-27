@@ -33,7 +33,7 @@ from object_detection_msgs.msg import Detection
 from object_detection_msgs.msg import DetectionArray
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Image
 
 from .depth_estimator import bbox_distance
@@ -114,20 +114,26 @@ class InferenceNode(Node):
             1,
         )
 
-        # sensor-data QoS (best effort): if inference is slower than the
-        # camera, old frames are dropped instead of piling up.
+        # best effort, keep only the newest frame: when inference is slower
+        # than the camera, older frames are dropped instead of waiting in a
+        # queue (a queue of 5 added ~200 ms of latency on the Jetson)
+        latest_only = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+        )
         self.create_subscription(
             Image,
             param("rgb_topic"),
             self.image_callback,
-            qos_profile_sensor_data,
+            latest_only,
         )
 
         self.create_subscription(
             Image,
             param("depth_topic"),
             self.depth_callback,
-            qos_profile_sensor_data,
+            latest_only,
         )
 
         self.frames = 0
