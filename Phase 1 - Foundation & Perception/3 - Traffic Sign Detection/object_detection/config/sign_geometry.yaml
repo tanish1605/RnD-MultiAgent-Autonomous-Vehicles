@@ -63,7 +63,7 @@ signs:
   mandatory_left:        {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
   mandatory_right:       {shape: circle,        width_m: 0.070, measured: true}  # measured diameter 7.0 cm
   no_entry:              {shape: square,        width_m: 0.042, measured: true}  # measured round sign 4.2 cm; outlined as a square (audit 98%), side = diameter
-  no_left_turn:          {shape: circle,        width_m: 0.10, measured: false}  # audit round 97%
+  no_left_turn:          {shape: circle,        width_m: 0.065, measured: true}  # measured diameter 6.5 cm
   no_parking:            {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
   no_waiting:            {shape: circle,        width_m: 0.08, measured: true}  # measured diameter 8.0 cm
   one_way:               {shape: circle,        width_m: 0.07, measured: true}  # measured diameter 7.0 cm
