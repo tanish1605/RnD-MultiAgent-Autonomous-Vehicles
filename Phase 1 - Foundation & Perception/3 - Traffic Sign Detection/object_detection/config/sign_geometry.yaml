@@ -51,28 +51,28 @@ signs:
   barrier_ahead:         {shape: triangle_up,   width_m: 0.0693, measured: true}  # measured height 6.0 cm; side from equal-sided triangle
   beginning_of_motorway: {shape: square,        width_m: 0.10, measured: false}  # audit square 100%
   bus_lane:              {shape: rectangle,     width_m: 0.10, height_m: 0.12, measured: false}  # audit -, guessed
-  car_prohibited:        {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
+  car_prohibited:        {shape: circle,        width_m: 0.068, measured: true}  # measured diameter 6.8 cm
   compulsory_ahead:      {shape: square,        width_m: 0.10, measured: false}  # audit square 100% (board)
-  crossroads:            {shape: triangle_up,   width_m: 0.10, measured: false}  # audit triangle_up 100%
-  cycle_lane:            {shape: square,        width_m: 0.10, measured: false}  # audit square 92% (board)
+  crossroads:            {shape: triangle_up,   width_m: 0.0751, measured: true}  # measured height 6.5 cm; side from equal-sided triangle
+  cycle_lane:            {shape: rectangle,     width_m: 0.055, height_m: 0.075, measured: true}  # measured 5.5 x 7.5 cm (width x height)
   end_of_motorway:       {shape: square,        width_m: 0.10, measured: false}  # audit square 100%
-  give_way:              {shape: triangle_down, width_m: 0.10, measured: false}  # audit triangle_down 100%
+  give_way:              {shape: triangle_down, width_m: 0.0751, measured: true}  # measured height 6.5 cm; side from equal-sided triangle
   hosital:               {shape: rectangle,     width_m: 0.10, height_m: 0.12, measured: false}  # audit -, guessed
   left_turn_ahead:       {shape: triangle_up,   width_m: 0.10, measured: false}  # audit -, guessed
-  major_road_ahead:      {shape: triangle_up,   width_m: 0.10, measured: false}  # audit triangle_up 98%
+  major_road_ahead:      {shape: triangle_up,   width_m: 0.0693, measured: true}  # measured height 6.0 cm; side from equal-sided triangle
   mandatory_left:        {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
-  mandatory_right:       {shape: circle,        width_m: 0.10, measured: false}  # audit round 90%
-  no_entry:              {shape: square,        width_m: 0.10, measured: false}  # audit square 98% (board)
+  mandatory_right:       {shape: circle,        width_m: 0.070, measured: true}  # measured diameter 7.0 cm
+  no_entry:              {shape: square,        width_m: 0.042, measured: true}  # measured round sign 4.2 cm; outlined as a square (audit 98%), side = diameter
   no_left_turn:          {shape: circle,        width_m: 0.10, measured: false}  # audit round 97%
   no_parking:            {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
   no_waiting:            {shape: circle,        width_m: 0.08, measured: true}  # measured diameter 8.0 cm
   one_way:               {shape: circle,        width_m: 0.07, measured: true}  # measured diameter 7.0 cm
-  parking:               {shape: square,        width_m: 0.10, measured: false}  # audit square 89%
+  parking:               {shape: square,        width_m: 0.045, measured: true}  # measured square 4.5 cm
   priority_road:         {shape: diamond,       width_m: 0.048, measured: true}  # measured corner to corner 4.8 cm
   right_turn_ahead:      {shape: triangle_up,   width_m: 0.10, measured: false}  # audit -, guessed
   roundabout:            {shape: square,        width_m: 0.10, measured: false}  # audit square 97% (board)
   stop:                  {shape: circle,        width_m: 0.075, measured: true}  # measured diameter 7.5 cm; the lab sign is round
-  straight_or_left:      {shape: circle,        width_m: 0.10, measured: false}  # audit round 100%
+  straight_or_left:      {shape: circle,        width_m: 0.080, measured: true}  # measured diameter 8.0 cm
   t_intersection:        {shape: triangle_up,   width_m: 0.10, measured: false}  # audit triangle_up 96%
   traffic_signal:        {shape: triangle_up,   width_m: 0.0693, measured: true}  # measured height 6.0 cm; side from equal-sided triangle
   u_turn:                {shape: circle,        width_m: 0.055, measured: true}  # measured diameter 5.5 cm
