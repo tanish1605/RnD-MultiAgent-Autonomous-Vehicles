@@ -7,7 +7,9 @@ Turn a Roboflow YOLO export into a clean dataset for training:
   1. gathers every image from every split folder of the export
   2. fixes labels you decided are wrong (--relabel IMAGE=CLASS), for
      example after reviewing the output of audit_sign_labels.py
-  3. drops images you decided are unusable (--drop IMAGE)
+  3. drops images you decided are unusable (--drop IMAGE), and, in a polygon
+     (segmentation) dataset, images labelled with plain boxes, because
+     segmentation training fails on mixed labels (--keep-box-labels to keep)
   4. splits by BLOCKS of consecutive video frames (--block-frames, default
      12) with all their augmented copies, stratified by class, so near-copies
      of a photo never end up in both training and test data; where blocks of
@@ -38,7 +40,7 @@ import yaml
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from object_detection.dataset_split import (  # noqa: E402
-    collect, relabel_lines, stratified_split)
+    collect, mixed_box_images, relabel_lines, stratified_split)
 
 SPLITS = ('train', 'valid', 'test')
 
@@ -80,6 +82,8 @@ def main():
     ap.add_argument('--gap', type=int, default=2,
                     help='leave out valid/test frames this close to a training frame (0 = off)')
     ap.add_argument('--copy', action='store_true', help='copy images instead of linking them')
+    ap.add_argument('--keep-box-labels', action='store_true',
+                    help='keep box-labelled images in a polygon dataset')
     ap.add_argument('--dry-run', action='store_true', help='show the plan, write nothing')
     args = ap.parse_args()
 
@@ -95,6 +99,11 @@ def main():
     for s in samples:
         if s.source in relabel:
             s.classes = [relabel[s.source]] * len(s.classes)
+    box_images = [] if args.keep_box_labels else mixed_box_images(samples)
+    if box_images:
+        print(f'Leaving out {len(box_images)} images labelled with boxes in a polygon dataset '
+              f'(segmentation training fails on mixed labels): {", ".join(box_images)}')
+        drop |= set(box_images)
     samples = [s for s in samples if s.source not in drop]
     assignment = stratified_split(samples, args.val, args.test, args.seed,
                                   block_frames=args.block_frames, gap=args.gap)
