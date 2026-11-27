@@ -30,7 +30,7 @@ import cv2
 from cv_bridge import CvBridge
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import (qos_profile_sensor_data, QoSDurabilityPolicy, QoSProfile,
+from rclpy.qos import (QoSDurabilityPolicy, QoSProfile,
                        QoSReliabilityPolicy)
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
@@ -86,8 +86,12 @@ class SegmentationNode(Node):
 
         # sensor-data QoS (best effort, depth 5): if inference is slower than
         # the camera, old frames are dropped instead of piling up.
+        # best effort, newest frame only: a deeper queue made frames wait
+        # ~200 ms behind each other on the Jetson when segmentation is slower
+        # than the camera
         self.create_subscription(Image, param('image_topic'), self.image_callback,
-                                 qos_profile_sensor_data)
+                                 QoSProfile(depth=1,
+                                            reliability=QoSReliabilityPolicy.BEST_EFFORT))
 
         self.frame_count = 0
         self.processed = 0
