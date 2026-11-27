@@ -70,10 +70,10 @@ signs:
   parking:               {shape: square,        width_m: 0.045, measured: true}  # measured square 4.5 cm
   priority_road:         {shape: diamond,       width_m: 0.048, measured: true}  # measured corner to corner 4.8 cm
   right_turn_ahead:      {shape: triangle_up,   width_m: 0.10, measured: false}  # audit -, guessed
-  roundabout:            {shape: square,        width_m: 0.10, measured: false}  # audit square 97% (board)
+  roundabout:            {shape: square,        width_m: 0.10, measured: false}  # audit square 97% (board); the lab sign is round, diameter not yet measured
   stop:                  {shape: circle,        width_m: 0.075, measured: true}  # measured diameter 7.5 cm; the lab sign is round
   straight_or_left:      {shape: circle,        width_m: 0.080, measured: true}  # measured diameter 8.0 cm
-  t_intersection:        {shape: triangle_up,   width_m: 0.10, measured: false}  # audit triangle_up 96%
+  t_intersection:        {shape: triangle_up,   width_m: 0.0693, measured: true}  # measured height 6.0 cm; side from equal-sided triangle
   traffic_signal:        {shape: triangle_up,   width_m: 0.0693, measured: true}  # measured height 6.0 cm; side from equal-sided triangle
   u_turn:                {shape: circle,        width_m: 0.055, measured: true}  # measured diameter 5.5 cm
   y_intersection:        {shape: triangle_up,   width_m: 0.0808, measured: true}  # measured height 7.0 cm; side from equal-sided triangle
