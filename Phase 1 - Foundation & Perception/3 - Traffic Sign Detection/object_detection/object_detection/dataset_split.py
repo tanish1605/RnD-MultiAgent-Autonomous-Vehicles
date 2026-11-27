@@ -40,6 +40,7 @@ class Sample:
     source: str
     copies: list = field(default_factory=list)   # [(image_path, label_path), ...]
     classes: list = field(default_factory=list)  # class of every object (first copy)
+    n_boxes: int = 0                              # objects labelled as plain boxes
 
     @property
     def main_class(self):
@@ -72,13 +73,38 @@ def collect(export_dir):
     for s in samples.values():
         first_label = s.copies[0][1]
         if first_label:
-            s.classes = read_classes(first_label)
+            s.classes, s.n_boxes = read_label_info(first_label)
     return list(samples.values())
 
 
 def read_classes(label_path):
+    return read_label_info(label_path)[0]
+
+
+def read_label_info(label_path):
+    """(class of every object, number of objects labelled as plain boxes)."""
+    classes, boxes = [], 0
     with open(label_path, encoding='utf-8') as f:
-        return [int(line.split()[0]) for line in f if line.strip()]
+        for line in f:
+            parts = line.split()
+            if parts:
+                classes.append(int(parts[0]))
+                boxes += len(parts) == 5          # 'class cx cy w h' = a box
+    return classes, boxes
+
+
+def mixed_box_images(samples):
+    """
+    Images whose labels are boxes in a dataset that is mostly polygons.
+
+    Segmentation training fails on a mix of box and polygon labels, so such
+    images are best left out. Returns [] for a box (detection) dataset.
+    """
+    boxes = sum(s.n_boxes for s in samples)
+    objects = sum(len(s.classes) for s in samples)
+    if boxes == 0 or boxes * 2 > objects:
+        return []
+    return sorted(s.source for s in samples if s.n_boxes)
 
 
 def stratified_split(samples, val=0.15, test=0.15, seed=42, block_frames=1, gap=0):

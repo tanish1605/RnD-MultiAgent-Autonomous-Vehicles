@@ -6,7 +6,8 @@ import sys
 
 import yaml
 
-from object_detection.dataset_split import (collect, frame_block, relabel_lines, Sample,
+from object_detection.dataset_split import (collect, frame_block, mixed_box_images,
+                                            relabel_lines, Sample,
                                             stratified_split)
 
 TOOL = os.path.join(os.path.dirname(__file__), '..', 'tools', 'prepare_sign_dataset.py')
@@ -149,3 +150,23 @@ def test_class_with_too_few_blocks_goes_to_train():
                                           for n in range(20)]
     split = stratified_split(samples, block_frames=12)
     assert {split[f'rare_{n:05d}_jpg'] for n in range(20)} == {'train'}
+
+
+def test_box_labels_in_polygon_dataset_are_left_out(tmp_path):
+    export, out = tmp_path / 'export', tmp_path / 'out'
+    make_export(export)
+    # one image whose label is a plain box among polygon labels
+    for f in (export / 'train' / 'labels').glob('sign2_00004_jpg*'):
+        f.write_text('2 0.5 0.5 0.2 0.2\n')
+    run = subprocess.run([sys.executable, TOOL, str(export), str(out), '--block-frames', '1',
+                          '--gap', '0'], capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr
+    assert 'sign2_00004_jpg' in run.stdout
+    written = [p.name for sp in ('train', 'valid', 'test')
+               for p in (out / sp / 'images').iterdir()]
+    assert not any(n.startswith('sign2_00004_jpg') for n in written)
+
+
+def test_box_dataset_keeps_everything():
+    samples = [Sample(f's{i}', classes=[0], n_boxes=1) for i in range(10)]
+    assert mixed_box_images(samples) == []
